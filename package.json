@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "bot.js",
   "scripts": {
+    "postinstall": "puppeteer install",
     "start": "node bot.js"
   },
   "dependencies": {
