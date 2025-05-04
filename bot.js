@@ -1,3 +1,5 @@
+// ✅ Bản giữ nguyên logic gốc, nhưng bổ sung để tăng lượng truy cập tốt hơn trên Google + web target
+
 const puppeteer = require("puppeteer-extra");
 const stealth = require("puppeteer-extra-plugin-stealth")();
 const randomUseragent = require("random-useragent");
@@ -7,12 +9,17 @@ const config = require("./config");
 
 puppeteer.use(stealth);
 
+// 🔧 Tạo file nếu chưa có
+["keywords.txt", "log.txt", "removed.txt"].forEach((f) => {
+  if (!fs.existsSync(f)) fs.writeFileSync(f, "");
+});
+
 let keywords = fs.readFileSync("keywords.txt", "utf-8")
   .split("\n")
   .map((k) => k.trim())
   .filter(Boolean);
 
-const domainVIP = "meostore.netlify.app"; // hoặc bất kỳ domain nào bạn muốn bot tìm trong Google
+const domainVIP = "meostore.netlify.app";
 const logFile = "log.txt";
 
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -85,7 +92,6 @@ async function fakeMouseMove(page) {
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
-    
 
     try {
       const page = await browser.newPage();
@@ -133,7 +139,7 @@ async function fakeMouseMove(page) {
         console.log(`✔️ Found ${foundLinks.length} VIPERSHOP link(s)!`);
         writeLog(`Success - Keyword: "${keyword}" - Found ${foundLinks.length} link(s)`);
 
-        await crawlGoogleSuggest(keyword); // Crawl suggest khi tìm thấy link
+        await crawlGoogleSuggest(keyword);
 
         for (const link of foundLinks) {
           await viewLink(page, link);
@@ -155,7 +161,6 @@ async function fakeMouseMove(page) {
   }
 
   console.log("🎉 Finished or No keywords left!");
-
 })();
 
 async function viewLink(page, link) {
@@ -165,5 +170,7 @@ async function viewLink(page, link) {
   await fakeScroll(page);
   await fakeMouseMove(page);
   await delay(3000);
-  await page.goBack();
-}
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await delay(2000);
+  console.log("🏁 Done viewing link.");
+} 
