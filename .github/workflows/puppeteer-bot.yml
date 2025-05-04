@@ -2,8 +2,8 @@ name: Run Puppeteer Bot
 
 on:
   schedule:
-    - cron: "*/5 * * * *"  # chạy mỗi 5 phút
-  workflow_dispatch:        # cho phép chạy thủ công
+    - cron: "*/5 * * * *" # chạy mỗi 5 phút
+  workflow_dispatch:
 
 jobs:
   run-bot:
@@ -21,7 +21,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install Chromium
+        run: sudo apt-get install -y chromium-browser
+
       - name: Run Puppeteer bot
         run: node bot.js
         env:
-          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
+          PUPPETEER_EXECUTABLE_PATH: "/usr/bin/chromium-browser"
