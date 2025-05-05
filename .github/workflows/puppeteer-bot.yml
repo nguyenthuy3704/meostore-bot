@@ -2,7 +2,7 @@ name: Run Puppeteer Bot
 
 on:
   schedule:
-    - cron: "*/30 * * * *"  # chạy mỗi 30 phút
+    - cron: "*/10 * * * *"  # chạy mỗi 30 phút
   workflow_dispatch:
 
 jobs:
