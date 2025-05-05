@@ -1,5 +1,3 @@
-// ✅ Bản giữ nguyên logic gốc, nhưng bổ sung để tăng lượng truy cập tốt hơn trên Google + web target
-
 const puppeteer = require("puppeteer-extra");
 const stealth = require("puppeteer-extra-plugin-stealth")();
 const randomUseragent = require("random-useragent");
@@ -9,7 +7,6 @@ const config = require("./config");
 
 puppeteer.use(stealth);
 
-// 🔧 Tạo file nếu chưa có
 ["keywords.txt", "log.txt", "removed.txt"].forEach((f) => {
   if (!fs.existsSync(f)) fs.writeFileSync(f, "");
 });
@@ -78,6 +75,18 @@ async function fakeMouseMove(page) {
   }
 }
 
+async function viewLink(page, link) {
+  console.log(`→ Visiting: ${link}`);
+  await page.goto(link, { waitUntil: "domcontentloaded" });
+  await delay(2000);
+  await fakeScroll(page);
+  await fakeMouseMove(page);
+  await delay(3000);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await delay(2000);
+  console.log("🏁 Done viewing link.");
+}
+
 (async () => {
   let count = 0;
 
@@ -114,7 +123,6 @@ async function fakeMouseMove(page) {
 
       await page.type('input[name="q"]', keyword, { delay: 50 });
       await page.keyboard.press("Enter");
-
       await delay(3000);
 
       if (page.url().includes("/sorry/")) {
@@ -132,20 +140,30 @@ async function fakeMouseMove(page) {
         continue;
       }
 
-      const links = await page.$$eval("a", (as) => as.map((a) => a.href));
+      // ✅ FIX: Lấy link thực từ Google redirect (q=...)
+      const links = await page.$$eval('a[href^="/url?"]', (as) =>
+        as.map((a) => {
+          try {
+            const url = new URL(a.href);
+            return decodeURIComponent(url.searchParams.get("q") || "");
+          } catch {
+            return "";
+          }
+        })
+      );
+
       const foundLinks = links.filter((link) => link.includes(domainVIP));
 
       if (foundLinks.length > 0) {
-        console.log(`✔️ Found ${foundLinks.length} VIPERSHOP link(s)!`);
-        writeLog(`Success - Keyword: "${keyword}" - Found ${foundLinks.length} link(s)`);
-
+        console.log(`✔️ Found ${foundLinks.length} VIP link(s)!`);
+        writeLog(`✅ Keyword: "${keyword}" - Found ${foundLinks.length} link(s)`);
         await crawlGoogleSuggest(keyword);
 
         for (const link of foundLinks) {
           await viewLink(page, link);
         }
       } else {
-        console.log("❌ No VIPERSHOP link found → Remove keyword & Close browser!");
+        console.log("❌ No VIP link found → Remove keyword & Close browser!");
         removeKeyword(keyword);
       }
 
@@ -156,21 +174,9 @@ async function fakeMouseMove(page) {
     await browser.close();
 
     const waitTime = randomDelay(config.delayMin, config.delayMax);
-    console.log(`⏳ Waiting ${waitTime / 1000}s for next run...`);
+    console.log(`⏳ Waiting ${(waitTime / 1000).toFixed(1)}s for next run...`);
     await delay(waitTime);
   }
 
   console.log("🎉 Finished or No keywords left!");
 })();
-
-async function viewLink(page, link) {
-  console.log(`→ Visiting: ${link}`);
-  await page.goto(link, { waitUntil: "domcontentloaded" });
-  await delay(2000);
-  await fakeScroll(page);
-  await fakeMouseMove(page);
-  await delay(3000);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await delay(2000);
-  console.log("🏁 Done viewing link.");
-} 
