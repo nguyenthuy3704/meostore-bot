@@ -1,3 +1,5 @@
+// ✅ Bản giữ nguyên logic gốc, nhưng bổ sung để tăng lượng truy cập tốt hơn trên Google + web target
+
 const puppeteer = require("puppeteer-extra");
 const stealth = require("puppeteer-extra-plugin-stealth")();
 const randomUseragent = require("random-useragent");
@@ -7,80 +9,72 @@ const config = require("./config");
 
 puppeteer.use(stealth);
 
-const domain = "meostore.netlify.app";
-const logFile = "log.txt";
-const internalPaths = ["/", "/napgame.html", "/lichsu.html", "/api.html", "/gioithieu.html"];
-
-// Auto create files
-["keywords.txt", logFile, "removed.txt"].forEach(file => {
-  if (!fs.existsSync(file)) fs.writeFileSync(file, "");
+// 🔧 Tạo file nếu chưa có
+["keywords.txt", "log.txt", "removed.txt"].forEach((f) => {
+  if (!fs.existsSync(f)) fs.writeFileSync(f, "");
 });
 
 let keywords = fs.readFileSync("keywords.txt", "utf-8")
   .split("\n")
-  .map(k => k.trim())
+  .map((k) => k.trim())
   .filter(Boolean);
 
-const delay = ms => new Promise(res => setTimeout(res, ms));
+const domainVIP = "meostore.netlify.app";
+const logFile = "log.txt";
+
+const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 const randomDelay = (min, max) => Math.floor(Math.random() * (max - min) + min);
 
-function writeLog(msg) {
+function writeLog(message) {
   const time = new Date().toLocaleString("vi-VN");
-  fs.appendFileSync(logFile, `[${time}] ${msg}\n`);
+  fs.appendFileSync(logFile, `[${time}] ${message}\n`);
 }
 
 function removeKeyword(keyword) {
-  keywords = keywords.filter(k => k !== keyword);
-  fs.writeFileSync("keywords.txt", keywords.join("\n"));
-  fs.appendFileSync("removed.txt", `[${new Date().toLocaleString("vi-VN")}] Removed: "${keyword}"\n`);
+  keywords = keywords.filter((k) => k !== keyword);
+  fs.writeFileSync("keywords.txt", keywords.join("\n"), "utf-8");
+  fs.appendFileSync("removed.txt", `[${new Date().toLocaleString('vi-VN')}] Removed: "${keyword}"\n`);
+  console.log(`🗑️ Removed keyword: "${keyword}" from keywords.txt`);
 }
 
 async function crawlGoogleSuggest(keyword) {
   try {
-    const res = await axios.get("https://suggestqueries.google.com/complete/search", {
+    const response = await axios.get("https://suggestqueries.google.com/complete/search", {
       params: { client: "firefox", q: keyword },
     });
-    const suggestions = res.data[1];
-    const newKeywords = suggestions.filter(s => !keywords.includes(s));
+
+    const suggestions = response.data[1];
+    const newKeywords = suggestions.filter((s) => !keywords.includes(s));
+
     if (newKeywords.length) {
-      fs.appendFileSync("keywords.txt", "\n" + newKeywords.join("\n"));
+      fs.appendFileSync("keywords.txt", "\n" + newKeywords.join("\n"), "utf-8");
       keywords.push(...newKeywords);
-      console.log(`➕ Added ${newKeywords.length} new keywords.`);
+      console.log(`➕ Added ${newKeywords.length} new keyword(s) from Google Suggest!`);
     }
   } catch (err) {
-    console.log("⚠️ Error fetching suggestions:", err.message);
+    console.log("⚠️ Error Crawl Suggest:", err.message);
   }
 }
 
-async function simulateUserInteraction(page) {
-  const scrollSteps = randomDelay(4, 8);
-  for (let i = 0; i < scrollSteps; i++) {
-    await page.evaluate(() => window.scrollBy(0, window.innerHeight / 1.5));
-    await delay(randomDelay(500, 1000));
+async function fakeScroll(page) {
+  const steps = randomDelay(5, 10);
+  for (let i = 0; i < steps; i++) {
+    await page.evaluate(() => window.scrollBy(0, window.innerHeight / 2));
+    await delay(randomDelay(500, 1500));
   }
+}
 
-  const { width, height } = await page.evaluate(() => ({
+async function fakeMouseMove(page) {
+  const box = await page.evaluate(() => ({
     width: window.innerWidth,
     height: window.innerHeight,
   }));
 
-  for (let i = 0; i < randomDelay(10, 20); i++) {
-    const x = Math.floor(Math.random() * width);
-    const y = Math.floor(Math.random() * height);
+  for (let i = 0; i < randomDelay(20, 40); i++) {
+    const x = Math.floor(Math.random() * box.width);
+    const y = Math.floor(Math.random() * box.height);
     await page.mouse.move(x, y, { steps: 5 });
-    await delay(randomDelay(300, 600));
-  }
-
-  await delay(randomDelay(3000, 6000));
-}
-
-async function visitInternalLinks(page) {
-  const paths = internalPaths.sort(() => 0.5 - Math.random()).slice(0, 2);
-  for (const path of paths) {
-    const url = `https://${domain}${path}`;
-    console.log(`↪️ Visiting: ${url}`);
-    await page.goto(url, { waitUntil: "domcontentloaded", referer: "https://www.google.com" });
-    await simulateUserInteraction(page);
+    await delay(randomDelay(200, 500));
   }
 }
 
@@ -90,7 +84,8 @@ async function visitInternalLinks(page) {
   while ((config.loop || count < config.limit) && keywords.length > 0) {
     console.clear();
     const keyword = keywords[Math.floor(Math.random() * keywords.length)];
-    console.log(`[${++count}] 🔍 Searching: "${keyword}"`);
+    console.log("============================");
+    console.log(`[${++count}] 🔍 Search: "${keyword}"`);
     console.log(`📌 Remaining keywords: ${keywords.length}`);
 
     const browser = await puppeteer.launch({
@@ -102,31 +97,55 @@ async function visitInternalLinks(page) {
       const page = await browser.newPage();
       await page.setUserAgent(randomUseragent.getRandom());
       await page.setExtraHTTPHeaders({
-        "Accept-Language": "vi-VN,vi;q=0.9",
-        "Referer": "https://www.google.com"
+        "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8",
+      });
+
+      await page.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, "webdriver", { get: () => false });
       });
 
       await page.goto("https://www.google.com", { timeout: 20000 });
-      await page.type('input[name="q"]', keyword, { delay: 100 });
+
+      if (page.url().includes("/sorry/")) {
+        console.log("🚫 Google Blocked → Close browser!");
+        await browser.close();
+        continue;
+      }
+
+      await page.type('input[name="q"]', keyword, { delay: 50 });
       await page.keyboard.press("Enter");
+
       await delay(3000);
 
-      const links = await page.$$eval("a[href^='/url?']", as =>
-        as.map(a => decodeURIComponent(new URL(a.href).searchParams.get("q") || ""))
-      );
+      if (page.url().includes("/sorry/")) {
+        console.log("🚫 Google Blocked after Search → Close browser!");
+        await browser.close();
+        continue;
+      }
 
-      const matchedLinks = links.filter(link => link.includes(domain));
-      if (matchedLinks.length > 0) {
-        console.log(`✔️ Found ${matchedLinks.length} link(s) to site`);
-        writeLog(`Keyword: "${keyword}" → ${matchedLinks.length} links`);
+      try {
+        await page.waitForSelector('a[href^="/url?"]', { timeout: 15000 });
+      } catch {
+        console.log("❌ No search result → Remove keyword & Close browser!");
+        removeKeyword(keyword);
+        await browser.close();
+        continue;
+      }
+
+      const links = await page.$$eval("a", (as) => as.map((a) => a.href));
+      const foundLinks = links.filter((link) => link.includes(domainVIP));
+
+      if (foundLinks.length > 0) {
+        console.log(`✔️ Found ${foundLinks.length} VIPERSHOP link(s)!`);
+        writeLog(`Success - Keyword: "${keyword}" - Found ${foundLinks.length} link(s)`);
+
         await crawlGoogleSuggest(keyword);
 
-        const target = matchedLinks[0];
-        await page.goto(target, { waitUntil: "domcontentloaded", referer: "https://www.google.com" });
-        await simulateUserInteraction(page);
-        await visitInternalLinks(page);
+        for (const link of foundLinks) {
+          await viewLink(page, link);
+        }
       } else {
-        console.log("❌ No link found → Remove keyword");
+        console.log("❌ No VIPERSHOP link found → Remove keyword & Close browser!");
         removeKeyword(keyword);
       }
 
@@ -135,10 +154,23 @@ async function visitInternalLinks(page) {
     }
 
     await browser.close();
+
     const waitTime = randomDelay(config.delayMin, config.delayMax);
-    console.log(`⏳ Waiting ${(waitTime / 1000).toFixed(1)}s...`);
+    console.log(`⏳ Waiting ${waitTime / 1000}s for next run...`);
     await delay(waitTime);
   }
 
-  console.log("🎉 Done or no keywords left.");
+  console.log("🎉 Finished or No keywords left!");
 })();
+
+async function viewLink(page, link) {
+  console.log(`→ Visiting: ${link}`);
+  await page.goto(link, { waitUntil: "domcontentloaded" });
+  await delay(2000);
+  await fakeScroll(page);
+  await fakeMouseMove(page);
+  await delay(3000);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await delay(2000);
+  console.log("🏁 Done viewing link.");
+} 
